@@ -1,26 +1,19 @@
-Instead, we have first built the critical, foundational layers of analysis that any professional would perform before attempting a wave count. What we have accomplished so far actually addresses the core of your Tasks 2.2 and 2.3 in a very powerful way.
+Summary of Changes: AnalysisEngine (Fibonacci Update)
+This version introduces Fibonacci Retracement analysis and applies it to both long-term and short-term charts for a more comprehensive view.
 
-Let's review your list:
+1. New Core Feature: Fibonacci Level Calculation
 
-i) Identify patterns based on the elliot waves...
+New Method Added: calculate_fibonacci_levels()
+Purpose: To automatically calculate key potential support and resistance levels based on the Fibonacci sequence.
+Logic: The function finds the absolute highest high and lowest low over the given data period. It then calculates the standard retracement levels (23.6%, 38.2%, 50%, 61.8%, and 78.6%) based on this price range.
+Output: It stores a list of these price levels, ready to be plotted.
+2. Enhancements to Existing Functionality
 
-Status: NOT STARTED. This is our ultimate goal, and we are now in a great position to begin this.
-ii) Identify stop loss based on the support, resistance and break outs...
+Plotting Function Updated: plot_analysis()
 
-Status: LARGELY COMPLETED.
-Support and Resistance: We have successfully identified the most significant support and resistance levels. We've done so as dynamic trendlines (the blue and purple lines), which is a very robust form of S&R analysis.
-Breakouts: Our analysis successfully identified a major breakout when the price broke below the long-term support trendline. You spotted this yourself, which proves the analysis is working.
-Stop Loss: The identified trendlines are exactly what an analyst would use to determine a logical stop-loss level. For example, a trader might place a stop loss just below the blue support trendline.
-iii) Identify the sub waves in it and immediate notification if any if there is any reversal in the wave.
+A new boolean parameter, show_fib, was added to control the visibility of the Fibonacci levels on the chart.
+When show_fib=True, the function now draws the calculated Fibonacci levels as horizontal, colored, dotted lines, with each line labeled by its percentage.
+Test Script Enhanced for Deeper Analysis
 
-Status: PARTIALLY COMPLETED.
-Sub-waves: We have not identified specific sub-waves (like wave 1, 2, 3 etc.). That is part of the main Elliott Wave counting task.
-Reversal Notification: We did get a major signal of a "reversal in the wave". The breaking of the 5-year support trendline is a powerful notification that the primary uptrend is potentially reversing into a corrective phase.
-Summary of Where We Are
-So far, our AnalysisEngine can intelligently:
-
-Separate analysis into long-term and short-term views.
-Find all significant market turning points (swing highs and lows).
-Identify the single most important support and resistance trendlines.
-Visually confirm when a price has broken out from a key trendline.
-We have built a robust trend analysis tool. The logical next step, as we discussed, is to add Fibonacci Retracement to analyze the consequence of the trend break you found. After that, we will be perfectly equipped to tackle the final layer: the Elliott Wave count.
+The main test block at the bottom of the script was updated to call calculate_fibonacci_levels() for both the long-term (5-year) and short-term (1-year) analysis.
+The plot_analysis() function is now called with show_fib=True for both timeframes, ensuring that each chart displays its own relevant Fibonacci levels. This provides a richer analytical view on both the "big picture" and the immediate price action.
