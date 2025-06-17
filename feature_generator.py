@@ -2,8 +2,8 @@
 
 import pandas as pd
 from datetime import datetime, timedelta
-# Import our existing DataHandler class
-from data_handler import DataHandler
+from data_handler import DataHandler # Import our existing DataHandler class
+import os # Added for path operations
 
 class FeatureGenerator:
     """
@@ -19,7 +19,7 @@ class FeatureGenerator:
         """Calculates and adds standard technical indicators manually."""
         print("Adding standard technical indicators (RSI, MACD, Bollinger Bands)...")
         close = self.data['Close']
-        
+
         # Bollinger Bands
         sma_20 = close.rolling(window=20).mean()
         std_20 = close.rolling(window=20).std()
@@ -63,30 +63,35 @@ class FeatureGenerator:
         print(f"Feature generation complete. Final dataset has {self.data.shape[0]} rows.")
         return self.data
 
+# --- NEW FUNCTION FOR ORCHESTRATION ---
+def run_feature_generation_pipeline(ticker: str, output_dir: str = '.'):
+    """
+    Orchestrates fetching data and generating features for a given ticker.
+    The generated feature dataset is saved to a CSV file.
+    Returns True on success, False otherwise.
+    """
+    print(f"\n--- Running Feature Generation for {ticker} ---")
+    today = datetime.now()
+    start_date = (today - timedelta(days=5*365)).strftime('%Y-%m-%d')
+    handler = DataHandler(ticker=ticker)
+    historical_data = handler.fetch_historical_data(start_date=start_date)
+
+    if not historical_data.empty:
+        feature_gen = FeatureGenerator(data_df=historical_data)
+        feature_dataset = feature_gen.generate_features()
+        # Add a placeholder 'label' column for our future work
+        feature_dataset['label'] = 'NotLabeled'
+
+        output_filename = os.path.join(output_dir, f"{ticker}_features.csv")
+        feature_dataset.to_csv(output_filename, index=True) # Ensure index (Date) is saved
+        print(f"Successfully created feature dataset and saved to '{output_filename}'.")
+        return True
+    else:
+        print(f"Could not fetch data for {ticker}, aborting feature generation.")
+        return False
+
 # This block allows you to test the script directly from your terminal
 if __name__ == '__main__':
     stock_ticker = 'RELIANCE.NS'
     print(f"\n--- Generating feature set for {stock_ticker} ---")
-
-    # 1. Fetch data
-    today = datetime.now()
-    start_date = (today - timedelta(days=5*365)).strftime('%Y-%m-%d')
-    handler = DataHandler(ticker=stock_ticker)
-    historical_data = handler.fetch_historical_data(start_date=start_date)
-
-    if not historical_data.empty:
-        # 2. Generate features
-        feature_gen = FeatureGenerator(data_df=historical_data)
-        feature_dataset = feature_gen.generate_features()
-        
-        # 3. Add a placeholder 'label' column for our future work
-        feature_dataset['label'] = 'NotLabeled'
-        
-        # 4. Save the dataset to a CSV file for inspection
-        output_filename = f"{stock_ticker}_features.csv"
-        feature_dataset.to_csv(output_filename)
-        
-        print(f"\nSuccessfully created feature dataset.")
-        print(f"Saved to '{output_filename}'")
-    else:
-        print("Could not fetch data, aborting feature generation.")
+    run_feature_generation_pipeline(stock_ticker) # Calls the new function for direct execution
