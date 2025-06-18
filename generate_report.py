@@ -15,7 +15,7 @@ from feature_generator import FeatureGenerator
 def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
     """
     Generates a complete analysis report for a given stock ticker, including:
-    1. Current trend and 3-5 week forecast.
+    1. Current trend and an enhanced 3-5 week forecast with price targets.
     2. A 4-week back-testing validation report.
     3. A price chart with the current trend annotated.
     """
@@ -36,7 +36,7 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
     handler = DataHandler(ticker=ticker)
     start_date = (datetime.now() - timedelta(days=2*365)).strftime('%Y-%m-%d')
     price_data = handler.fetch_historical_data(start_date=start_date)
-    
+
     if price_data.empty:
         print(f"Could not fetch price data for {ticker}. Aborting.")
         return
@@ -51,40 +51,71 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
     feature_dataset['predicted_label'] = predictions
 
     # --- 4. Define Mappings and Current Status ---
-    # --- CHANGE: Updated dictionaries to reflect the new, simpler labeling scheme ---
     label_to_state = {
-        0: "Sideways/Neutral",
-        1: "Uptrend",
-        2: "Downtrend"
+        0: "Sideways/Neutral", 1: "Uptrend", 2: "Downtrend"
     }
     label_to_trend = {
-        0: "NEUTRAL / SIDEWAYS",
-        1: "UPTREND",
-        2: "DOWNTREND"
+        0: "NEUTRAL / SIDEWAYS", 1: "UPTREND", 2: "DOWNTREND"
     }
-    # --- END CHANGE ---
-    
+
     last_day_prediction = feature_dataset['predicted_label'].iloc[-1]
     current_state = label_to_state.get(last_day_prediction, "Unknown")
     current_trend = label_to_trend.get(last_day_prediction, "Unknown")
 
-    # --- 5. Display Text Report: Forecast ---
+    # --- 5. Display Text Report: ENHANCED Forecast ---
     print("\n" + "="*20 + f" Analysis for {ticker} " + "="*20)
     print(f"Report Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"Current Model-Predicted State: {current_state}")
     print(f"Implied Near-Term Trend: {current_trend}")
-    
+
     print("\n--- 3-5 Week Trend Forecast ---")
+
+    # --- THIS ENTIRE BLOCK IS NEW ---
+    last_close_price = feature_dataset['Close'].iloc[-1]
+    last_atr = feature_dataset['ATRr_14'].iloc[-1]
+
+    # Estimate weekly volatility percentage based on the last daily ATR
+    weekly_vol_pct = (last_atr / last_close_price) * 100 * 2.25 # Use sqrt(5) ~= 2.25 as a weekly multiplier
+
+    # Define heuristic weekly movements based on trend
+    if current_trend == "UPTREND":
+        min_weekly_pct = weekly_vol_pct * 0.4
+        max_weekly_pct = weekly_vol_pct * 1.2
+    elif current_trend == "DOWNTREND":
+        min_weekly_pct = -weekly_vol_pct * 1.2
+        max_weekly_pct = -weekly_vol_pct * 0.4
+    else: # SIDEWAYS
+        min_weekly_pct = -weekly_vol_pct * 0.75
+        max_weekly_pct = weekly_vol_pct * 0.75
+
+    print(f"Last Close: {last_close_price:.2f} | Estimated Weekly Move: {min_weekly_pct:.2f}% to {max_weekly_pct:.2f}%")
+
     forecast_data = []
+    # Initialize cumulative prices for the start of the forecast
+    cumulative_price_low = last_close_price
+    cumulative_price_high = last_close_price
+
     for i in range(1, 6):
-        forecast_data.append({'Forecast Week': f'Week {i}', 'Predicted Trend': current_trend})
+        # Project the price range for the end of the forecast week
+        cumulative_price_low *= (1 + min_weekly_pct / 100)
+        cumulative_price_high *= (1 + max_weekly_pct / 100)
+
+        price_range_str = f"₹{cumulative_price_low:.2f} - ₹{cumulative_price_high:.2f}"
+
+        forecast_data.append({
+            'Forecast Week': f'Week {i}',
+            'Predicted Trend': current_trend,
+            'Est. Weekly Move %': f"{min_weekly_pct:.2f}% to {max_weekly_pct:.2f}%",
+            'Projected Price Range': price_range_str
+        })
+
     forecast_df = pd.DataFrame(forecast_data)
     print(forecast_df.to_string(index=False))
+    # --- END OF NEW BLOCK ---
 
     # --- 6. Display Text Report: Back-testing Validation ---
     print("\n--- 4-Week Back-testing Report (Validation) ---")
     backtest_data = []
-    
     today = pd.Timestamp.now(tz=feature_dataset.index.tz)
 
     for i in range(4, 0, -1):
@@ -93,23 +124,21 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
 
         try:
             temp_idx = feature_dataset.index.searchsorted(start_of_week, side='right')
-            if temp_idx == 0:
-                continue
+            if temp_idx == 0: continue
             prediction_date_index = temp_idx - 1
-
             predicted_label = feature_dataset['predicted_label'].iloc[prediction_date_index]
             predicted_trend = label_to_trend.get(predicted_label, "Unknown")
         except (KeyError, IndexError):
             predicted_trend = "No Data"
 
         week_data = price_data[(price_data.index >= start_of_week) & (price_data.index < end_of_week)]
-        
+
         if not week_data.empty:
             actual_start_price = week_data['Close'].iloc[0]
             actual_end_price = week_data['Close'].iloc[-1]
             actual_change_pct = ((actual_end_price - actual_start_price) / actual_start_price) * 100
             actual_trend = "UPTREND" if actual_change_pct > 1.5 else "DOWNTREND" if actual_change_pct < -1.5 else "SIDEWAYS"
-            
+
             backtest_data.append({
                 'Week Ending': end_of_week.strftime('%Y-%m-%d'),
                 'Predicted Trend': predicted_trend,
@@ -130,7 +159,6 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
 
     start_date_for_chart = pd.Timestamp.now(tz=price_data.index.tz) - pd.DateOffset(months=9)
     chart_data = price_data.loc[price_data.index >= start_date_for_chart]
-    
     ax.plot(chart_data.index, chart_data['Close'], label='Close Price', color='dodgerblue')
 
     ax.set_title(f'9-Month Price Chart for {ticker}\nReport Date: {datetime.now().strftime("%Y-%m-%d")}', fontsize=16)
@@ -138,17 +166,17 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
     ax.set_xlabel('Date', fontsize=12)
 
     trend_color = 'green' if 'UPTREND' in current_trend else 'red' if 'DOWNTREND' in current_trend else 'orange'
-    ax.text(0.02, 0.95, f'Current Predicted Trend: {current_trend}', 
+    ax.text(0.02, 0.95, f'Current Predicted Trend: {current_trend}',
             transform=ax.transAxes, fontsize=14, verticalalignment='top',
             bbox=dict(boxstyle='round,pad=0.5', facecolor=trend_color, alpha=0.7))
-            
+
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     fig.autofmt_xdate()
-    
+
     plt.legend()
     plt.grid(True)
-    
+
     chart_filename = os.path.join(output_dir, f"{ticker}_analysis_chart.png")
     plt.savefig(chart_filename)
     print(f"Chart successfully saved to '{chart_filename}'")
@@ -157,5 +185,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Generate a complete analysis report for a stock.")
     parser.add_argument('ticker', type=str, help='The stock ticker symbol (e.g., RELIANCE.NS)')
     args = parser.parse_args()
-    
+
     run_analysis_report(args.ticker)

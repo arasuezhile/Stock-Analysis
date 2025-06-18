@@ -69,11 +69,12 @@ def create_universal_labeled_dataset(tickers: list, output_dir: str = 'training_
     print(f"Total rows in dataset: {len(universal_df)}")
 
 if __name__ == '__main__':
-    stock_list = [
-        'RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 
-        'HINDUNILVR.NS', 'ICICIBANK.NS', 'KOTAKBANK.NS',
-        'BAJFINANCE.NS', 'BHARTIARTL.NS', 'ITC.NS',
-        'MARUTI.NS', 'ASIANPAINT.NS', 'LT.NS','SAIL.NS','HINDCOPPER.NS'
-    ]
+    stock_list = [ '360ONE.NS' ,'3MINDIA.NS' ,'ABB.NS' ,'ACC.NS' ,'AIAENG.NS' ,'APLAPOLLO.NS' ,'AUBANK.NS' ,'AARTIIND.NS' ,
+'AAVAS.NS' ,'ABBOTINDIA.NS' ,'ACE.NS' ,'ADANIENSOL.NS' ,'ADANIENT.NS' ,'ADANIGREEN.NS' ,'ADANIPORTS.NS' ,
+'ADANIPOWER.NS' ,'ATGL.NS' ,'AWL.NS' ,'ABCAPITAL.NS' ,'ABFRL.NS' ,'AEGISLOG.NS' ,'AETHER.NS' ,'AFFLE.NS' ,
+'AJANTPHARM.NS' ,'APLLTD.NS' ,'ALKEM.NS' ,'ALKYLAMINE.NS' ,'ALLCARGO.NS' ,'ALOKINDS.NS' ,'ARE&M.NS' ,'AMBER.NS' ,
+'AMBUJACEM.NS' ,'ANANDRATHI.NS' ,'ANGELONE.NS' ,'ANURAS.NS' ,'APARINDS.NS' ,'APOLLOHOSP.NS' ,'APOLLOTYRE.NS' ,
+'APTUS.NS' ,'ACI.NS' ,'ASAHIINDIA.NS' ,'ASHOKLEY.NS' ,'ASIANPAINT.NS' ,'ASTERDM.NS' ,'ASTRAZEN.NS' ,'ASTRAL.NS' ,
+'ATUL.NS' ,'AUROPHARMA.NS' ,'AVANTIFEED.NS' ,'DMART.NS' ,'AXISBANK.NS' ,'BEML.NS' ,'BLS.NS' ,'BSE.NS' ]
     
     create_universal_labeled_dataset(tickers=stock_list)
