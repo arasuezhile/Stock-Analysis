@@ -34,7 +34,6 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
     # --- 2. Fetch and Prepare Data ---
     print(f"Fetching latest data for {ticker}...")
     handler = DataHandler(ticker=ticker)
-    # Fetch data for the last 2 years for context and feature calculation
     start_date = (datetime.now() - timedelta(days=2*365)).strftime('%Y-%m-%d')
     price_data = handler.fetch_historical_data(start_date=start_date)
     
@@ -42,7 +41,6 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
         print(f"Could not fetch price data for {ticker}. Aborting.")
         return
 
-    # Generate the same features the model was trained on
     feature_gen = FeatureGenerator(data_df=price_data)
     feature_dataset = feature_gen.generate_features()
 
@@ -53,16 +51,18 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
     feature_dataset['predicted_label'] = predictions
 
     # --- 4. Define Mappings and Current Status ---
+    # --- CHANGE: Updated dictionaries to reflect the new, simpler labeling scheme ---
     label_to_state = {
-        0: "No Clear Pattern", 1: "Impulse Wave 1", 2: "Corrective Wave 2",
-        3: "Impulse Wave 3", 4: "Corrective Wave 4", 5: "Impulse Wave 5",
-        6: "Corrective Wave A", 7: "Corrective Wave B", 8: "Corrective Wave C"
+        0: "Sideways/Neutral",
+        1: "Uptrend",
+        2: "Downtrend"
     }
     label_to_trend = {
-        0: "NEUTRAL / SIDEWAYS", 1: "UPTREND", 2: "DOWNTREND (Correction)",
-        3: "UPTREND", 4: "DOWNTREND (Correction)", 5: "UPTREND",
-        6: "DOWNTREND", 7: "UPTREND (Corrective Bounce)", 8: "DOWNTREND"
+        0: "NEUTRAL / SIDEWAYS",
+        1: "UPTREND",
+        2: "DOWNTREND"
     }
+    # --- END CHANGE ---
     
     last_day_prediction = feature_dataset['predicted_label'].iloc[-1]
     current_state = label_to_state.get(last_day_prediction, "Unknown")
@@ -85,7 +85,6 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
     print("\n--- 4-Week Back-testing Report (Validation) ---")
     backtest_data = []
     
-    # Make the 'today' variable timezone-aware by matching the data's timezone
     today = pd.Timestamp.now(tz=feature_dataset.index.tz)
 
     for i in range(4, 0, -1):
@@ -93,11 +92,9 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
         start_of_week = today - timedelta(weeks=i)
 
         try:
-            # Find the insertion point for the start_of_week date using a compatible method
             temp_idx = feature_dataset.index.searchsorted(start_of_week, side='right')
             if temp_idx == 0:
                 continue
-            # The prediction date is the one right before this insertion point
             prediction_date_index = temp_idx - 1
 
             predicted_label = feature_dataset['predicted_label'].iloc[prediction_date_index]
@@ -105,15 +102,13 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
         except (KeyError, IndexError):
             predicted_trend = "No Data"
 
-        # --- THIS LINE CONTAINS THE FIX ---
-        # Compare aware-to-aware by removing the unnecessary tz_convert(None)
         week_data = price_data[(price_data.index >= start_of_week) & (price_data.index < end_of_week)]
         
         if not week_data.empty:
             actual_start_price = week_data['Close'].iloc[0]
             actual_end_price = week_data['Close'].iloc[-1]
             actual_change_pct = ((actual_end_price - actual_start_price) / actual_start_price) * 100
-            actual_trend = "UPTREND" if actual_change_pct > 0 else "DOWNTREND"
+            actual_trend = "UPTREND" if actual_change_pct > 1.5 else "DOWNTREND" if actual_change_pct < -1.5 else "SIDEWAYS"
             
             backtest_data.append({
                 'Week Ending': end_of_week.strftime('%Y-%m-%d'),
@@ -133,22 +128,20 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
     plt.style.use('seaborn-v0_8-darkgrid')
     fig, ax = plt.subplots(figsize=(15, 8))
 
-    # Plot the last 9 months of price data for context
-    chart_data = price_data.last('9M')
+    start_date_for_chart = pd.Timestamp.now(tz=price_data.index.tz) - pd.DateOffset(months=9)
+    chart_data = price_data.loc[price_data.index >= start_date_for_chart]
+    
     ax.plot(chart_data.index, chart_data['Close'], label='Close Price', color='dodgerblue')
 
-    # Add a title and labels
     ax.set_title(f'9-Month Price Chart for {ticker}\nReport Date: {datetime.now().strftime("%Y-%m-%d")}', fontsize=16)
     ax.set_ylabel('Price', fontsize=12)
     ax.set_xlabel('Date', fontsize=12)
 
-    # Add an annotation for the current predicted trend
     trend_color = 'green' if 'UPTREND' in current_trend else 'red' if 'DOWNTREND' in current_trend else 'orange'
     ax.text(0.02, 0.95, f'Current Predicted Trend: {current_trend}', 
             transform=ax.transAxes, fontsize=14, verticalalignment='top',
             bbox=dict(boxstyle='round,pad=0.5', facecolor=trend_color, alpha=0.7))
             
-    # Format the date axis
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     fig.autofmt_xdate()
@@ -156,7 +149,6 @@ def run_analysis_report(ticker: str, output_dir: str = 'training_dataset'):
     plt.legend()
     plt.grid(True)
     
-    # Save the chart to the output directory
     chart_filename = os.path.join(output_dir, f"{ticker}_analysis_chart.png")
     plt.savefig(chart_filename)
     print(f"Chart successfully saved to '{chart_filename}'")
