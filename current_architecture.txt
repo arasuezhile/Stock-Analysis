@@ -1,0 +1,93 @@
+Overall Architecture
+The project is intelligently designed as a modular pipeline. Each script has a specific responsibility, and they are orchestrated by the final prediction_script.py. The data flows through the system like this:
+
+Data Handler → Feature Generator → Labeling Script → Training Script → Prediction Script
+
+The goal is to use Elliott Wave theory to programmatically label historical data, train a Machine Learning model to recognize the features associated with those labels, and then use that model to predict the current state and future trend of a stock.
+
+1. Project Dependencies (requirements.txt)
+This file lists all the Python libraries required to run the project. Before you do anything else, you need to install these.
+
+pandas: For data manipulation and handling stock data in DataFrames.
+yfinance: To download historical stock market data from Yahoo Finance.
+scipy: Used in the AnalysisEngine for its signal processing capabilities, specifically to find peaks and troughs (swing points) in the price data.
+matplotlib & seaborn: Used for plotting and data visualization. Although the final script doesn't generate a chart, these are likely used in the AnalysisEngine's plotting function.
+scikit-learn: A fundamental machine learning library used in the training_script.py to split data and evaluate the model.
+xgboost: This is the library for the machine learning model itself. XGBoost is a powerful and popular algorithm for classification tasks like this one.
+joblib: Used for saving the trained machine learning model to a file and loading it back for predictions.
+2. The Core Scripts Explained
+data_handler.py
+Purpose: This is the first step. Its sole job is to fetch clean, historical stock data from the internet.
+Key Component: The DataHandler class.
+How it Works: You give it a stock ticker (e.g., 'RELIANCE.NS'). Its fetch_historical_data method connects to Yahoo Finance, downloads the data for a specified date range, removes unnecessary columns like 'Dividends', and returns it as a clean Pandas DataFrame. It also includes error handling for invalid tickers or network issues.
+feature_generator.py
+Purpose: Machine learning models don't understand raw prices. This script's job is to convert the raw price data into meaningful "features" that a model can learn from.
+Key Component: The FeatureGenerator class.
+How it Works: It takes the DataFrame from DataHandler and enriches it by calculating:
+Technical Indicators: Bollinger Bands, MACD, and RSI. These are standard indicators that help quantify market momentum and volatility.
+Price Features: It calculates percentage price changes over 1 and 5 days, and the standard deviation of returns (volatility).
+Orchestration: The run_feature_generation_pipeline function automates the process: it takes a ticker, calls DataHandler, generates all features, and saves the resulting dataset to a CSV file named {ticker}_features.csv.
+analysis_engine.py
+Purpose: This is the "brain" of the technical analysis. Its goal is to analyze the raw price history and identify potential Elliott Wave patterns, which are the basis for our ML labels. 
+Key Component: The AnalysisEngine class. 
+How it Works:
+find_swing_points(): It first identifies significant market turning points (peaks and troughs) using a scientific function from scipy. 
+find_elliott_wave_impulse(): This is the core logic. It searches through the swing points for a sequence of 6 points that could form a 5-wave impulse pattern. It uses flexible rules (with a buffer) to check that the pattern roughly adheres to Elliott Wave theory (e.g., Wave 3 isn't the shortest, Wave 4 doesn't significantly overlap with Wave 1). 
+Limitation: The script notes that the ABC correction projection and the final plotting function are not fully implemented or used by the rest of the pipeline. Its primary role here is to find the impulse waves for the labeling script. 
+labeling_script.py
+Purpose: This script bridges the gap between technical analysis and machine learning. It uses the AnalysisEngine to assign a predictive label to every single day in our feature dataset.
+Key Component: The DataLabeler class.
+How it Works:
+It loads the feature set created by feature_generator.py.
+It runs the AnalysisEngine on the full price history to find all valid 5-wave patterns.
+It then iterates through the feature DataFrame and assigns a numeric label to each row (i.e., each day). For example, any day that falls within the first wave of a pattern gets labeled '1', the second wave gets '2', and so on. Days with no clear pattern are labeled '0'.
+Orchestration: The run_labeling_pipeline function automates this, saving the final labeled dataset to {ticker}_labeled_dataset.csv and printing a summary of how many days were assigned to each label.
+training_script.py
+Purpose: To take the labeled data and train a machine learning model that can predict the wave label (0-8) based on the technical features.
+Key Component: The run_training_pipeline function.
+How it Works:
+Load Data: It loads the {ticker}_labeled_dataset.csv.
+Split Data: It separates the data into features (X) and the target (y, the 'label' column). The data is split into a training set (80%) and a testing set (20%). It's crucial that shuffle=False is used, as this is time-series data.
+Train Model: It initializes and trains an XGBClassifier on the training data.
+Evaluate: It tests the model's performance on the unseen testing data and prints an accuracy score and a detailed classification report.
+Save Model: The fully trained model is saved to a single file: {ticker}_elliott_wave_model.pkl. This file contains the "intelligence" of the system.
+3. How to Run the Script & What it Covers
+This is the best part: the entire pipeline is orchestrated by the final script.
+
+prediction_script.py
+Purpose: This is the main, user-facing script. It generates the final prediction report and is the only script you need to run directly.
+Step-by-Step Instructions:
+Install Dependencies: Open your terminal or command prompt and run:
+
+Bash
+
+pip install -r requirements.txt
+Run the Prediction: To get a report for a stock, simply run the script from your terminal and pass the ticker symbol as an argument. For example, for Reliance Industries:
+
+Bash
+
+python prediction_script.py RELIANCE.NS
+What Happens When You Run It:
+Orchestration: The script first checks if a trained model (RELIANCE.NS_elliott_wave_model.pkl) already exists.
+If the model doesn't exist, it will automatically run the entire pipeline for you, in order: Feature Generation -> Data Labeling -> Model Training. This is a fantastic feature that makes it incredibly easy to use.
+If the model exists, it skips the pipeline and proceeds directly to the prediction.
+Final Report Generation:
+It loads the trained model.
+It fetches the latest market data and generates the same set of features.
+It uses the model to predict the current Elliott Wave state for the most recent day.
+It translates this state into a human-readable trend (e.g., "UPTREND," "DOWNTREND (Correction)").
+4-Week Forecast: It provides a forward-looking table for the next 4 weeks, showing the predicted trend and an illustrative possible price range based on that trend.
+4-Week Back-test: It generates a report for the previous 4 weeks, comparing the trend it would have predicted each week to the actual trend that occurred, including the actual percentage change. This is critical for gauging the model's real-world performance.
+Does it Cover Everything?
+Based on your initial project requirements, this implementation is very comprehensive and covers most of what you asked for.
+
+What's Covered Very Well:
+
+Input: Takes a single Indian stock ticker. (Covered)
+ML Integration: It absolutely learns from past data by training a model. (Covered)
+4-Week Forecast: The primary output is a 4-week trend forecast. (Covered)
+4-Week Back-testing: The validation report is a key feature of the final script. (Covered)
+What's Partially Covered or Simplified:
+
+Technical Analysis: The core idea of using Elliott Waves is brilliantly implemented for labeling.  However, your original request also mentioned Fibonacci levels and specific support/resistance as inputs. While the model uses Bollinger Bands (a form of dynamic support/resistance), explicit Fibonacci features are not part of the feature_generator.py. This is a reasonable simplification for an initial version.
+Chart Output: The AnalysisEngine has a method for plotting, but it's not called by the final prediction_script.py. The final output is text-based in the console, not a chart image. This would be a clear next step for future development.

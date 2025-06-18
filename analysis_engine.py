@@ -39,6 +39,13 @@ class AnalysisEngine:
         valid_patterns = []
         for i in range(len(swings) - 5, -1, -1):
             p = swings.iloc[i:i+6]
+            
+            # --- CHANGE ---
+            # This guard clause prevents errors on incomplete slices near the end of the data.
+            if len(p) < 6:
+                continue
+            # --- END CHANGE ---
+            
             if not (p.iloc[0]['swing_low'] and p.iloc[1]['swing_high'] and p.iloc[2]['swing_low'] and p.iloc[3]['swing_high'] and p.iloc[4]['swing_low'] and p.iloc[5]['swing_high']): continue
             
             p0, p1, p2, p3, p4, p5 = p['price'].values
