@@ -1,1 +1,11 @@
-token.txt
+# Python artifacts
+__pycache__/
+*.pyc
+
+# Generated data and models
+*.csv
+*.pkl
+
+# Environment files
+.env
+venv/
